@@ -98,10 +98,8 @@ export default function PoseDetection({
           console.log('🎬 Video element ready, starting pose detection...');
           setIsInitialized(true);
           console.log('✅ MediaPipe Pose initialized successfully');
-          // Add a small delay to ensure everything is ready
-          setTimeout(() => {
-            startPoseDetectionLoop();
-          }, 100);
+          // Start detection loop immediately
+          startPoseDetectionLoop();
         }
       } catch (error) {
         console.error('Failed to initialize MediaPipe Pose:', error);
@@ -116,10 +114,31 @@ export default function PoseDetection({
   // Manual pose detection loop
   const startPoseDetectionLoop = () => {
     console.log('🚀 Starting pose detection loop...');
+    console.log('Debug state:', { 
+      hasPoseRef: !!poseRef.current,
+      hasVideoRef: !!videoRef.current,
+      isActive,
+      isInitialized,
+      videoReadyState: videoRef.current?.readyState,
+      videoPlaying: !videoRef.current?.paused
+    });
     
     const detectPose = async () => {
-      if (!poseRef.current || !videoRef.current || !isActive || !isInitialized) {
-        console.log('❌ Skipping detection - missing refs or not active');
+      // More relaxed checking - only require the essential refs
+      if (!poseRef.current || !videoRef.current) {
+        console.log('❌ Missing essential refs:', {
+          hasPoseRef: !!poseRef.current,
+          hasVideoRef: !!videoRef.current
+        });
+        // Retry after short delay
+        setTimeout(detectPose, 100);
+        return;
+      }
+
+      // Check if video is ready
+      if (videoRef.current.readyState < 2) {
+        console.log('⏳ Video not ready, waiting...');
+        setTimeout(detectPose, 100);
         return;
       }
 
@@ -132,8 +151,8 @@ export default function PoseDetection({
         console.error('💥 Pose detection error:', error);
       }
 
-      // Continue the loop
-      if (isActive && isInitialized) {
+      // Continue the loop if still active
+      if (isActive) {
         animationRef.current = requestAnimationFrame(detectPose);
       }
     };
@@ -454,11 +473,8 @@ export default function PoseDetection({
   // Fallback simulation if MediaPipe not available
   useEffect(() => {
     if (!isMediaPipeLoaded && isActive) {
-      console.log('Using pose detection simulation');
+      console.log('📺 Using pose detection simulation as fallback');
       startSimulation();
-    } else if (isMediaPipeLoaded && !isInitialized && isActive) {
-      // MediaPipe is loaded but not initialized yet, wait a bit
-      console.log('MediaPipe loaded, waiting for initialization...');
     }
 
     return () => {
@@ -466,7 +482,7 @@ export default function PoseDetection({
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [isActive, isMediaPipeLoaded, isInitialized, repCount, lastPostureCheck]);
+  }, [isActive, isMediaPipeLoaded, repCount, lastPostureCheck]);
 
   const drawSimulatedPose = (ctx: CanvasRenderingContext2D, width: number, height: number, timestamp: number) => {
     // Enhanced pose tracking simulation that follows more realistic movement patterns
