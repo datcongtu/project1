@@ -1,0 +1,29 @@
+Tên dự án: MOMazing
+- Slogan: Embrace your new you
+- Lĩnh vực: Y tế, công nghệ
+- Giới thiệu về dự án: Ứng dụng là nền tảng hỗ trợ sức khoẻ toàn diện (thể chất và tinh thần) cho phụ nữ sau sinh sử dụng thuật toán phân tích dữ liệu, công nghệ thị giác máy tính & AI
+- Các chức năng:
+
+
+
+Tên gọi
+Mô tả
+Chức năng chính
+Cải thiện vóc dáng & phục hồi chức năng
+- Cải thiện vóc dáng và phục hồi chức năng cho phụ nữ sau sinh bằng phương pháp vật lý trị liệu (vận động cơ học)
+- Thiết kế kho bài tập vật lý trị liệu (dựa trên cố vấn từ các chuyên gia) và đưa ra lộ trình tập luyện phù hợp với người dùng dựa trên đặc điểm cơ thể (nhận diện qua công nghệ thị giác máy tính) và mô tả của người dùng về tình trạng sức khỏe cá nhân
+- Sử dụng công nghệ thị giác máy tính & AI, giúp điều chỉnh tư thế và chuyển động của người dùng theo thời gian thực để đưa ra hướng chỉnh sửa kịp thời cho tư thế của họ, tối đa hiệu quả của buổi tập
+- Xây dựng thực đơn: Dựa vào bài test tình trạng sức khoẻ, thói quen ăn uống và kết quả kiểm tra dinh dưỡng của người bệnh (nếu có) để cung cấp thực đơn hàng ngày, giúp phụ nữ sau sinh được cung cấp đầy đủ dinh dưỡng, đồng thời lấy lại vóc dáng khỏe mạnh, cân đối, giúp họ tự tin hơn về ngoại hình
+Điều trị tâm lý
+- Xây dựng bài test tâm lý dựa trên tư vấn của các chuyên gia tâm lý, cung cấp cho người dùng để đưa ra phân tích về mức độ ổn định tâm lý
+- Tâm lý trị liệu: Kết nối và trò chuyện với các bác sĩ, chuyên gia tâm lý; cung cấp các audio/video về những câu chuyện sau sinh và các cách để giữ tâm trạng tích cực, giúp các bà mẹ cảm thấy được thấu hiểu, chia sẻ và có tâm lý ổn định hơn sau mang thai
+Đặt lịch khám trực tiếp
+Người dùng có thể đặt lịch khám trực tiếp tại các bệnh viện, phòng khám đối tác của doanh nghiệp
+Chức năng phụ
+Thông báo cá nhân hoá
+Push notification để nhắc nhở người dùng về lịch trình tập luyện, khám bệnh hoặc kế hoạch ăn uống
+Hỗ trợ sử dụng và giải đáp thắc mắc
+Xây dựng chatbot để hướng dẫn khách hàng sử dụng các tính năng của ứng dụng, giải đáp những thắc mắc của người dùng
+Theo dõi tiến độ
+- Ứng dụng theo dõi hoạt động của người dùng và cung cấp dữ liệu cho hai bên: bệnh nhân và phòng khám, từ đó có thể cá nhân hoá kế hoạch cải thiện vóc dáng và điều trị tâm lý cho người bệnh
+- Người dùng cũng có thể xem tiến trình phục hồi của mình theo thời gian. Ứng dụng sẽ check-up tình trạng của bệnh nhân hằng ngày
