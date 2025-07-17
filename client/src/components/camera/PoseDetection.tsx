@@ -1,11 +1,36 @@
 import { useEffect, useRef, useState } from "react";
 
+// MediaPipe global types
+declare global {
+  interface Window {
+    Pose: any;
+    Camera: any;
+    drawConnectors: any;
+    drawLandmarks: any;
+    POSE_CONNECTIONS: any;
+    POSE_LANDMARKS: any;
+  }
+}
+
 interface PoseDetectionProps {
   videoRef: React.RefObject<HTMLVideoElement>;
   canvasRef: React.RefObject<HTMLCanvasElement>;
   isActive: boolean;
   onPostureUpdate: (score: number) => void;
   onRepCount: (count: number) => void;
+}
+
+interface PoseLandmark {
+  x: number;
+  y: number;
+  z: number;
+  visibility?: number;
+}
+
+interface PoseResults {
+  image: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement;
+  poseLandmarks?: PoseLandmark[];
+  segmentationMask?: ImageData;
 }
 
 export default function PoseDetection({
@@ -16,21 +41,229 @@ export default function PoseDetection({
   onRepCount
 }: PoseDetectionProps) {
   const animationRef = useRef<number>();
+  const poseRef = useRef<any>(null);
+  const cameraRef = useRef<any>(null);
   const [repCount, setRepCount] = useState(0);
   const [lastPostureCheck, setLastPostureCheck] = useState(0);
+  const [isMediaPipeLoaded, setIsMediaPipeLoaded] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Exercise tracking state
+  const previousHipY = useRef<number>(0);
+  const movementDirection = useRef<'up' | 'down' | 'none'>('none');
+  const repInProgress = useRef<boolean>(false);
 
+  // Load MediaPipe scripts
   useEffect(() => {
-    if (!isActive) {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
+    const loadMediaPipe = async () => {
+      if (window.Pose && window.Camera) {
+        setIsMediaPipeLoaded(true);
+        return;
       }
+
+      try {
+        // Load MediaPipe scripts
+        const scripts = [
+          'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js',
+          'https://cdn.jsdelivr.net/npm/@mediapipe/control_utils@0.6/control_utils.js',
+          'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js',
+          'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js'
+        ];
+
+        for (const src of scripts) {
+          await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+          });
+        }
+
+        console.log('MediaPipe scripts loaded successfully');
+        setIsMediaPipeLoaded(true);
+      } catch (error) {
+        console.error('Failed to load MediaPipe:', error);
+        // Fall back to simulation if MediaPipe fails to load
+        setIsMediaPipeLoaded(false);
+      }
+    };
+
+    loadMediaPipe();
+  }, []);
+
+  // Initialize MediaPipe Pose
+  useEffect(() => {
+    if (!isMediaPipeLoaded || !isActive || isInitialized) return;
+
+    const initializePose = async () => {
+      try {
+        const pose = new window.Pose({
+          locateFile: (file: string) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`;
+          }
+        });
+
+        pose.setOptions({
+          modelComplexity: 1,
+          smoothLandmarks: true,
+          enableSegmentation: false,
+          smoothSegmentation: false,
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5
+        });
+
+        pose.onResults(onPoseResults);
+        poseRef.current = pose;
+
+        if (videoRef.current) {
+          const camera = new window.Camera(videoRef.current, {
+            onFrame: async () => {
+              if (poseRef.current && videoRef.current) {
+                await poseRef.current.send({ image: videoRef.current });
+              }
+            },
+            width: 640,
+            height: 480
+          });
+
+          cameraRef.current = camera;
+          setIsInitialized(true);
+          console.log('MediaPipe Pose initialized successfully');
+        }
+      } catch (error) {
+        console.error('Failed to initialize MediaPipe Pose:', error);
+        // Fall back to simulation
+        startSimulation();
+      }
+    };
+
+    initializePose();
+  }, [isMediaPipeLoaded, isActive, isInitialized]);
+
+  // Clean up MediaPipe
+  useEffect(() => {
+    if (!isActive && isInitialized) {
+      if (cameraRef.current) {
+        try {
+          cameraRef.current.stop();
+        } catch (error) {
+          console.warn('Error stopping camera:', error);
+        }
+      }
+      poseRef.current = null;
+      cameraRef.current = null;
+      setIsInitialized(false);
+    }
+  }, [isActive, isInitialized]);
+
+  const onPoseResults = (results: PoseResults) => {
+    if (!canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Set canvas size to match video
+    if (videoRef.current) {
+      canvas.width = videoRef.current.videoWidth || 640;
+      canvas.height = videoRef.current.videoHeight || 480;
+    }
+
+    // Clear canvas and draw the input image
+    ctx.save();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+    // Draw pose landmarks if detected
+    if (results.poseLandmarks && window.drawConnectors && window.drawLandmarks) {
+      // Draw pose connections
+      window.drawConnectors(ctx, results.poseLandmarks, window.POSE_CONNECTIONS, {
+        color: '#D888A3', // Mom-pink color
+        lineWidth: 3
+      });
+
+      // Draw pose landmarks
+      window.drawLandmarks(ctx, results.poseLandmarks, {
+        color: '#D888A3',
+        fillColor: '#FFFFFF',
+        lineWidth: 2,
+        radius: 6
+      });
+
+      // Analyze pose for exercise tracking
+      analyzePose(results.poseLandmarks);
+    }
+
+    ctx.restore();
+  };
+
+  const analyzePose = (landmarks: PoseLandmark[]) => {
+    if (!landmarks || landmarks.length < 33) return;
+
+    const now = Date.now();
+    
+    // Get key landmarks for pelvic tilt analysis
+    const leftHip = landmarks[23]; // Left hip
+    const rightHip = landmarks[24]; // Right hip
+    const leftShoulder = landmarks[11]; // Left shoulder
+    const rightShoulder = landmarks[12]; // Right shoulder
+    const nose = landmarks[0]; // Nose for head position
+
+    // Calculate hip center
+    const hipCenterY = (leftHip.y + rightHip.y) / 2;
+    
+    // Calculate posture score based on alignment
+    const shoulderCenterY = (leftShoulder.y + rightShoulder.y) / 2;
+    const spineAlignment = Math.abs(nose.y - shoulderCenterY - hipCenterY);
+    const postureScore = Math.max(0, Math.min(100, 100 - (spineAlignment * 200)));
+
+    // Update posture score every second
+    if (now - lastPostureCheck > 1000) {
+      onPostureUpdate(Math.round(postureScore));
+      setLastPostureCheck(now);
+    }
+
+    // Rep counting for pelvic tilts
+    countReps(hipCenterY);
+  };
+
+  const countReps = (currentHipY: number) => {
+    const threshold = 0.02; // Movement threshold
+
+    if (previousHipY.current === 0) {
+      previousHipY.current = currentHipY;
       return;
     }
 
-    // TODO: Replace with actual MediaPipe implementation
-    // This is a simulation of pose detection functionality
+    const movement = currentHipY - previousHipY.current;
+
+    // Detect movement direction
+    if (Math.abs(movement) > threshold) {
+      const newDirection = movement > 0 ? 'down' : 'up';
+      
+      // If direction changed and we're moving up (completing a tilt)
+      if (movementDirection.current === 'down' && newDirection === 'up' && !repInProgress.current) {
+        const newRepCount = repCount + 1;
+        setRepCount(newRepCount);
+        onRepCount(newRepCount);
+        repInProgress.current = true;
+        
+        // Reset rep progress after a short delay
+        setTimeout(() => {
+          repInProgress.current = false;
+        }, 1000);
+      }
+      
+      movementDirection.current = newDirection;
+    }
+
+    previousHipY.current = currentHipY;
+  };
+
+  const startSimulation = () => {
     const detectPose = () => {
-      if (!videoRef.current || !canvasRef.current) return;
+      if (!videoRef.current || !canvasRef.current || !isActive) return;
 
       const canvas = canvasRef.current;
       const video = videoRef.current;
@@ -39,24 +272,23 @@ export default function PoseDetection({
       if (!ctx) return;
 
       // Set canvas size to match video
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
 
-      // Clear canvas
+      // Clear canvas and draw video
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Simulate pose detection with random values that change over time
+      // Draw enhanced simulation
       const now = Date.now();
-      if (now - lastPostureCheck > 1000) { // Update every second
-        // Simulate varying posture scores
-        const baseScore = 75 + Math.sin(now / 5000) * 15; // Oscillates between 60-90
+      if (now - lastPostureCheck > 1000) {
+        const baseScore = 75 + Math.sin(now / 5000) * 15;
         const randomVariation = (Math.random() - 0.5) * 10;
         const postureScore = Math.max(0, Math.min(100, Math.round(baseScore + randomVariation)));
         
         onPostureUpdate(postureScore);
         
-        // Simulate rep counting (increment every 3-5 seconds during exercise)
-        if (Math.random() < 0.3) { // 30% chance each second to count a rep
+        if (Math.random() < 0.3) {
           const newRepCount = repCount + 1;
           setRepCount(newRepCount);
           onRepCount(newRepCount);
@@ -65,21 +297,28 @@ export default function PoseDetection({
         setLastPostureCheck(now);
       }
 
-      // Draw simulated pose landmarks
+      // Draw simulated pose
       drawSimulatedPose(ctx, canvas.width, canvas.height, now);
 
-      // Continue animation loop
       animationRef.current = requestAnimationFrame(detectPose);
     };
 
     detectPose();
+  };
+
+  // Fallback simulation if MediaPipe not available
+  useEffect(() => {
+    if (!isMediaPipeLoaded && isActive) {
+      console.log('Using pose detection simulation');
+      startSimulation();
+    }
 
     return () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [isActive, videoRef, canvasRef, onPostureUpdate, onRepCount, repCount, lastPostureCheck]);
+  }, [isActive, isMediaPipeLoaded, repCount, lastPostureCheck]);
 
   const drawSimulatedPose = (ctx: CanvasRenderingContext2D, width: number, height: number, timestamp: number) => {
     // Enhanced pose tracking simulation that follows more realistic movement patterns
