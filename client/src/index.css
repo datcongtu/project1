@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(0, 0%, 9%);
+  --muted: hsl(349, 30%, 96%);
+  --muted-foreground: hsl(0, 0%, 46%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(0, 0%, 9%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(0, 0%, 9%);
+  --border: hsl(349, 30%, 92%);
+  --input: hsl(349, 30%, 92%);
+  --primary: hsl(337, 38%, 65%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(349, 30%, 96%);
+  --secondary-foreground: hsl(0, 0%, 15%);
+  --accent: hsl(349, 30%, 96%);
+  --accent-foreground: hsl(0, 0%, 15%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(337, 38%, 65%);
+  --radius: 0.75rem;
+  
+  /* MOMazing custom colors */
+  --mom-pink: hsl(337, 38%, 65%);
+  --mom-pink-light: hsl(349, 30%, 96%);
+  --mom-pink-accent: hsl(340, 45%, 72%);
+  --mom-gray: hsl(217, 9%, 45%);
+}
+
+.dark {
+  --background: hsl(0, 0%, 4%);
+  --foreground: hsl(0, 0%, 95%);
+  --muted: hsl(337, 20%, 8%);
+  --muted-foreground: hsl(0, 0%, 65%);
+  --popover: hsl(0, 0%, 4%);
+  --popover-foreground: hsl(0, 0%, 95%);
+  --card: hsl(0, 0%, 4%);
+  --card-foreground: hsl(0, 0%, 95%);
+  --border: hsl(337, 20%, 15%);
+  --input: hsl(337, 20%, 15%);
+  --primary: hsl(337, 38%, 65%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(337, 20%, 8%);
+  --secondary-foreground: hsl(0, 0%, 95%);
+  --accent: hsl(337, 20%, 8%);
+  --accent-foreground: hsl(0, 0%, 95%);
+  --destructive: hsl(0, 63%, 31%);
+  --destructive-foreground: hsl(0, 0%, 95%);
+  --ring: hsl(337, 38%, 65%);
+  
+  /* MOMazing custom colors for dark mode */
+  --mom-pink: hsl(337, 38%, 65%);
+  --mom-pink-light: hsl(337, 20%, 8%);
+  --mom-pink-accent: hsl(340, 45%, 72%);
+  --mom-gray: hsl(217, 9%, 65%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .mom-pink {
+    color: var(--mom-pink);
+  }
+  
+  .bg-mom-pink {
+    background-color: var(--mom-pink);
+  }
+  
+  .bg-mom-pink-light {
+    background-color: var(--mom-pink-light);
+  }
+  
+  .bg-mom-pink-accent {
+    background-color: var(--mom-pink-accent);
+  }
+  
+  .text-mom-gray {
+    color: var(--mom-gray);
+  }
+  
+  .border-mom-pink-light {
+    border-color: var(--mom-pink-light);
+  }
+  
+  .hover\:bg-mom-pink-accent:hover {
+    background-color: var(--mom-pink-accent);
+  }
+  
+  .hover\:text-mom-pink:hover {
+    color: var(--mom-pink);
+  }
+}
+
+/* Camera feed specific styles */
+.camera-container {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.pose-overlay {
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
+/* Pulse animation for live indicators */
+@keyframes pulse-soft {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Smooth transitions for better UX */
+.transition-colors {
+  transition-property: color, background-color, border-color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+/* Loading skeleton styles */
+.skeleton {
+  background: linear-gradient(90deg, var(--muted) 25%, var(--muted-foreground) 50%, var(--muted) 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
