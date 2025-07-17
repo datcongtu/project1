@@ -175,19 +175,41 @@ export default function PoseDetection({
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
-    // Draw pose landmarks if detected
-    if (results.poseLandmarks && window.drawConnectors && window.drawLandmarks) {
-      // Draw pose connections first (skeleton)
-      window.drawConnectors(ctx, results.poseLandmarks, window.POSE_CONNECTIONS, {
-        color: 'rgba(216, 136, 163, 0.6)', // Semi-transparent mom-pink
-        lineWidth: 2
-      });
+    // Debug logging
+    console.log('Pose results:', {
+      hasLandmarks: !!results.poseLandmarks,
+      landmarkCount: results.poseLandmarks?.length,
+      hasDrawFunctions: !!(window.drawConnectors && window.drawLandmarks)
+    });
 
-      // Draw custom landmarks with better visibility for hands
+    // Draw pose landmarks if detected
+    if (results.poseLandmarks) {
+      console.log('Drawing landmarks, count:', results.poseLandmarks.length);
+      
+      // Try to use MediaPipe's built-in drawing functions first
+      if (window.drawConnectors && window.drawLandmarks && window.POSE_CONNECTIONS) {
+        // Draw pose connections first (skeleton)
+        window.drawConnectors(ctx, results.poseLandmarks, window.POSE_CONNECTIONS, {
+          color: 'rgba(216, 136, 163, 0.8)', // More visible
+          lineWidth: 3
+        });
+
+        // Draw all landmarks with MediaPipe's function
+        window.drawLandmarks(ctx, results.poseLandmarks, {
+          color: '#FF6B9D',
+          fillColor: '#FFFFFF',
+          lineWidth: 2,
+          radius: 8
+        });
+      }
+
+      // Always draw our custom landmarks as backup
       drawCustomLandmarks(ctx, results.poseLandmarks, canvas.width, canvas.height);
 
       // Analyze pose for exercise tracking
       analyzePose(results.poseLandmarks);
+    } else {
+      console.log('No pose landmarks detected');
     }
 
     ctx.restore();
@@ -224,41 +246,61 @@ export default function PoseDetection({
   };
 
   const drawCustomLandmarks = (ctx: CanvasRenderingContext2D, landmarks: PoseLandmark[], width: number, height: number) => {
+    console.log('Drawing custom landmarks:', landmarks.length);
+    
+    // Draw all landmarks first to debug
+    landmarks.forEach((landmark, index) => {
+      const x = landmark.x * width;
+      const y = landmark.y * height;
+      
+      // Draw all landmarks as simple circles for debugging
+      if (x >= 0 && x <= width && y >= 0 && y <= height) {
+        ctx.save();
+        
+        // Draw a basic circle for each landmark
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, 2 * Math.PI);
+        ctx.fillStyle = '#FF0000'; // Red for debugging
+        ctx.fill();
+        
+        // Draw landmark number
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '10px Arial';
+        ctx.fillText(index.toString(), x + 8, y - 8);
+        
+        ctx.restore();
+      }
+    });
+
     // Define important landmark groups with different colors and sizes
     const landmarkGroups = {
       hands: {
-        indices: [15, 16, 17, 18, 19, 20, 21, 22], // Wrists and hand landmarks
+        indices: [15, 16, 19, 20], // Wrists and key hand points
         color: '#FF6B9D', // Bright pink for hands
-        radius: 8,
+        radius: 12,
         glow: true
       },
       arms: {
         indices: [11, 12, 13, 14], // Shoulders and elbows
         color: '#D888A3', // Mom-pink
-        radius: 6,
+        radius: 8,
         glow: false
       },
       core: {
         indices: [23, 24, 25, 26], // Hips and knees
         color: '#B86F95', // Darker pink
-        radius: 7,
+        radius: 10,
         glow: false
       },
       face: {
-        indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], // Face landmarks
+        indices: [0], // Just nose for now
         color: '#F4C2C2', // Light pink
-        radius: 4,
-        glow: false
-      },
-      feet: {
-        indices: [27, 28, 29, 30, 31, 32], // Ankles and feet
-        color: '#A85D87', // Deep pink
-        radius: 5,
+        radius: 8,
         glow: false
       }
     };
 
-    // Draw landmarks by groups
+    // Draw landmarks by groups with enhanced visibility
     Object.entries(landmarkGroups).forEach(([groupName, config]) => {
       config.indices.forEach(index => {
         if (index < landmarks.length) {
@@ -266,37 +308,35 @@ export default function PoseDetection({
           const x = landmark.x * width;
           const y = landmark.y * height;
           
-          // Only draw if landmark is visible and within bounds
-          if (landmark.visibility && landmark.visibility > 0.5 && 
-              x >= 0 && x <= width && y >= 0 && y <= height) {
-            
+          // Draw if within bounds (remove visibility check for now)
+          if (x >= 0 && x <= width && y >= 0 && y <= height) {
             ctx.save();
             
-            // Add glow effect for important landmarks (hands)
+            // Add glow effect for important landmarks
             if (config.glow) {
               ctx.shadowColor = config.color;
-              ctx.shadowBlur = 15;
+              ctx.shadowBlur = 20;
               ctx.shadowOffsetX = 0;
               ctx.shadowOffsetY = 0;
             }
             
-            // Draw outer circle
+            // Draw larger, more visible circle
             ctx.beginPath();
             ctx.arc(x, y, config.radius, 0, 2 * Math.PI);
             ctx.fillStyle = config.color;
             ctx.fill();
             
-            // Draw inner circle (white center)
+            // Draw white center
             ctx.beginPath();
-            ctx.arc(x, y, config.radius - 2, 0, 2 * Math.PI);
+            ctx.arc(x, y, config.radius - 3, 0, 2 * Math.PI);
             ctx.fillStyle = '#FFFFFF';
             ctx.fill();
             
-            // Draw border
+            // Draw thick border
             ctx.beginPath();
             ctx.arc(x, y, config.radius, 0, 2 * Math.PI);
-            ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 3;
             ctx.stroke();
             
             ctx.restore();
@@ -305,25 +345,29 @@ export default function PoseDetection({
       });
     });
 
-    // Add labels for key landmarks
-    ctx.font = '12px Inter, sans-serif';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.lineWidth = 2;
+    // Add labels for hands with better visibility
+    ctx.font = '14px Arial, sans-serif';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
 
     // Label hands specifically
-    if (landmarks[15] && landmarks[15].visibility > 0.5) {
+    if (landmarks[15]) {
       const x = landmarks[15].x * width;
       const y = landmarks[15].y * height;
-      ctx.strokeText('Left Hand', x + 10, y - 10);
-      ctx.fillText('Left Hand', x + 10, y - 10);
+      if (x >= 0 && x <= width && y >= 0 && y <= height) {
+        ctx.strokeText('LEFT HAND', x + 15, y - 15);
+        ctx.fillText('LEFT HAND', x + 15, y - 15);
+      }
     }
     
-    if (landmarks[16] && landmarks[16].visibility > 0.5) {
+    if (landmarks[16]) {
       const x = landmarks[16].x * width;
       const y = landmarks[16].y * height;
-      ctx.strokeText('Right Hand', x + 10, y - 10);
-      ctx.fillText('Right Hand', x + 10, y - 10);
+      if (x >= 0 && x <= width && y >= 0 && y <= height) {
+        ctx.strokeText('RIGHT HAND', x + 15, y - 15);
+        ctx.fillText('RIGHT HAND', x + 15, y - 15);
+      }
     }
   };
 
