@@ -53,43 +53,20 @@ export default function PoseDetection({
   const movementDirection = useRef<'up' | 'down' | 'none'>('none');
   const repInProgress = useRef<boolean>(false);
 
-  // Load MediaPipe scripts
+  // Check MediaPipe scripts loaded from HTML
   useEffect(() => {
-    const loadMediaPipe = async () => {
-      if (window.Pose && window.Camera) {
+    const checkMediaPipe = () => {
+      if (window.Pose && window.Camera && window.drawConnectors && window.drawLandmarks) {
+        console.log('✅ All MediaPipe scripts loaded from HTML');
         setIsMediaPipeLoaded(true);
-        return;
-      }
-
-      try {
-        // Load MediaPipe scripts
-        const scripts = [
-          'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js',
-          'https://cdn.jsdelivr.net/npm/@mediapipe/control_utils@0.6/control_utils.js',
-          'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js',
-          'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js'
-        ];
-
-        for (const src of scripts) {
-          await new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = src;
-            script.onload = resolve;
-            script.onerror = reject;
-            document.head.appendChild(script);
-          });
-        }
-
-        console.log('MediaPipe scripts loaded successfully');
-        setIsMediaPipeLoaded(true);
-      } catch (error) {
-        console.error('Failed to load MediaPipe:', error);
-        // Fall back to simulation if MediaPipe fails to load
-        setIsMediaPipeLoaded(false);
+      } else {
+        console.log('⏳ Waiting for MediaPipe scripts to load...');
+        // Try again after a short delay
+        setTimeout(checkMediaPipe, 100);
       }
     };
 
-    loadMediaPipe();
+    checkMediaPipe();
   }, []);
 
   // Initialize MediaPipe Pose
@@ -118,9 +95,13 @@ export default function PoseDetection({
 
         // Start manual pose detection loop instead of using MediaPipe Camera
         if (videoRef.current) {
+          console.log('🎬 Video element ready, starting pose detection...');
           setIsInitialized(true);
-          console.log('MediaPipe Pose initialized successfully');
-          startPoseDetectionLoop();
+          console.log('✅ MediaPipe Pose initialized successfully');
+          // Add a small delay to ensure everything is ready
+          setTimeout(() => {
+            startPoseDetectionLoop();
+          }, 100);
         }
       } catch (error) {
         console.error('Failed to initialize MediaPipe Pose:', error);
@@ -134,14 +115,21 @@ export default function PoseDetection({
 
   // Manual pose detection loop
   const startPoseDetectionLoop = () => {
+    console.log('🚀 Starting pose detection loop...');
+    
     const detectPose = async () => {
-      if (!poseRef.current || !videoRef.current || !isActive || !isInitialized) return;
+      if (!poseRef.current || !videoRef.current || !isActive || !isInitialized) {
+        console.log('❌ Skipping detection - missing refs or not active');
+        return;
+      }
 
       try {
+        console.log('📡 Sending frame to MediaPipe...');
         // Send video frame to MediaPipe for pose detection
         await poseRef.current.send({ image: videoRef.current });
+        console.log('✅ Frame sent successfully');
       } catch (error) {
-        console.error('Pose detection error:', error);
+        console.error('💥 Pose detection error:', error);
       }
 
       // Continue the loop
@@ -150,6 +138,7 @@ export default function PoseDetection({
       }
     };
 
+    // Start immediately
     detectPose();
   };
 
@@ -165,6 +154,12 @@ export default function PoseDetection({
   }, [isActive, isInitialized]);
 
   const onPoseResults = (results: PoseResults) => {
+    console.log('📸 Pose results received!', {
+      hasLandmarks: !!results.poseLandmarks,
+      landmarkCount: results.poseLandmarks?.length,
+      hasDrawFunctions: !!(window.drawConnectors && window.drawLandmarks)
+    });
+
     if (!canvasRef.current) return;
 
     const canvas = canvasRef.current;
@@ -182,16 +177,9 @@ export default function PoseDetection({
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
-    // Debug logging
-    console.log('Pose results:', {
-      hasLandmarks: !!results.poseLandmarks,
-      landmarkCount: results.poseLandmarks?.length,
-      hasDrawFunctions: !!(window.drawConnectors && window.drawLandmarks)
-    });
-
     // Draw pose landmarks if detected
     if (results.poseLandmarks) {
-      console.log('Drawing landmarks, count:', results.poseLandmarks.length);
+      console.log('🎯 Drawing landmarks, count:', results.poseLandmarks.length);
       
       // Try to use MediaPipe's built-in drawing functions first
       if (window.drawConnectors && window.drawLandmarks && window.POSE_CONNECTIONS) {
@@ -216,7 +204,7 @@ export default function PoseDetection({
       // Analyze pose for exercise tracking
       analyzePose(results.poseLandmarks);
     } else {
-      console.log('No pose landmarks detected');
+      console.log('❌ No pose landmarks detected');
     }
 
     ctx.restore();
@@ -253,27 +241,34 @@ export default function PoseDetection({
   };
 
   const drawCustomLandmarks = (ctx: CanvasRenderingContext2D, landmarks: PoseLandmark[], width: number, height: number) => {
-    console.log('Drawing custom landmarks:', landmarks.length);
+    console.log('✨ Drawing custom landmarks:', landmarks.length);
     
-    // Draw all landmarks first to debug
+    // Draw all landmarks first to debug - make them VERY visible
     landmarks.forEach((landmark, index) => {
       const x = landmark.x * width;
       const y = landmark.y * height;
       
-      // Draw all landmarks as simple circles for debugging
-      if (x >= 0 && x <= width && y >= 0 && y <= height) {
+      // Draw all landmarks as large, bright circles for debugging
+      if (x >= -50 && x <= width + 50 && y >= -50 && y <= height + 50) { // Extended bounds
         ctx.save();
         
-        // Draw a basic circle for each landmark
+        // Draw a large, bright circle for each landmark
         ctx.beginPath();
-        ctx.arc(x, y, 6, 0, 2 * Math.PI);
-        ctx.fillStyle = '#FF0000'; // Red for debugging
+        ctx.arc(x, y, 12, 0, 2 * Math.PI); // Bigger radius
+        ctx.fillStyle = '#00FF00'; // Bright green for debugging
         ctx.fill();
         
-        // Draw landmark number
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '10px Arial';
-        ctx.fillText(index.toString(), x + 8, y - 8);
+        // Draw black border
+        ctx.beginPath();
+        ctx.arc(x, y, 12, 0, 2 * Math.PI);
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Draw landmark number in larger font
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 12px Arial';
+        ctx.fillText(index.toString(), x + 15, y - 15);
         
         ctx.restore();
       }
