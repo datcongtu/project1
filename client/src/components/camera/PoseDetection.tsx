@@ -116,20 +116,11 @@ export default function PoseDetection({
         pose.onResults(onPoseResults);
         poseRef.current = pose;
 
+        // Start manual pose detection loop instead of using MediaPipe Camera
         if (videoRef.current) {
-          const camera = new window.Camera(videoRef.current, {
-            onFrame: async () => {
-              if (poseRef.current && videoRef.current) {
-                await poseRef.current.send({ image: videoRef.current });
-              }
-            },
-            width: 640,
-            height: 480
-          });
-
-          cameraRef.current = camera;
           setIsInitialized(true);
           console.log('MediaPipe Pose initialized successfully');
+          startPoseDetectionLoop();
         }
       } catch (error) {
         console.error('Failed to initialize MediaPipe Pose:', error);
@@ -141,18 +132,34 @@ export default function PoseDetection({
     initializePose();
   }, [isMediaPipeLoaded, isActive, isInitialized]);
 
+  // Manual pose detection loop
+  const startPoseDetectionLoop = () => {
+    const detectPose = async () => {
+      if (!poseRef.current || !videoRef.current || !isActive || !isInitialized) return;
+
+      try {
+        // Send video frame to MediaPipe for pose detection
+        await poseRef.current.send({ image: videoRef.current });
+      } catch (error) {
+        console.error('Pose detection error:', error);
+      }
+
+      // Continue the loop
+      if (isActive && isInitialized) {
+        animationRef.current = requestAnimationFrame(detectPose);
+      }
+    };
+
+    detectPose();
+  };
+
   // Clean up MediaPipe
   useEffect(() => {
     if (!isActive && isInitialized) {
-      if (cameraRef.current) {
-        try {
-          cameraRef.current.stop();
-        } catch (error) {
-          console.warn('Error stopping camera:', error);
-        }
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
       }
       poseRef.current = null;
-      cameraRef.current = null;
       setIsInitialized(false);
     }
   }, [isActive, isInitialized]);
@@ -454,6 +461,9 @@ export default function PoseDetection({
     if (!isMediaPipeLoaded && isActive) {
       console.log('Using pose detection simulation');
       startSimulation();
+    } else if (isMediaPipeLoaded && !isInitialized && isActive) {
+      // MediaPipe is loaded but not initialized yet, wait a bit
+      console.log('MediaPipe loaded, waiting for initialization...');
     }
 
     return () => {
@@ -461,7 +471,7 @@ export default function PoseDetection({
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [isActive, isMediaPipeLoaded, repCount, lastPostureCheck]);
+  }, [isActive, isMediaPipeLoaded, isInitialized, repCount, lastPostureCheck]);
 
   const drawSimulatedPose = (ctx: CanvasRenderingContext2D, width: number, height: number, timestamp: number) => {
     // Enhanced pose tracking simulation that follows more realistic movement patterns
