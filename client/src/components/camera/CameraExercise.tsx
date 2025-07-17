@@ -95,29 +95,72 @@ export default function CameraExercise() {
     setCameraError('');
 
     try {
-      const constraints = getCameraConstraints();
-      const stream = await initializeCamera(constraints);
+      // First try to get permission
+      if (!await navigator.mediaDevices.getUserMedia({ video: true }).then(() => true).catch(() => false)) {
+        throw new Error('Camera permission denied');
+      }
+
+      // Get the most compatible camera stream
+      const stream = await getCompatibleStream();
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
         
-        // Wait for video to load
+        // Wait for video to load with auto-play
+        videoRef.current.autoplay = true;
+        videoRef.current.playsInline = true;
+        videoRef.current.muted = true;
+        
         await new Promise<void>((resolve, reject) => {
           if (videoRef.current) {
-            videoRef.current.onloadedmetadata = () => resolve();
+            videoRef.current.onloadedmetadata = () => {
+              videoRef.current?.play().then(() => resolve()).catch(() => resolve()); // Resolve even if play fails
+            };
             videoRef.current.onerror = () => reject(new Error('Video load failed'));
-            setTimeout(() => reject(new Error('Video load timeout')), 5000);
+            setTimeout(() => reject(new Error('Video load timeout')), 8000);
           }
         });
         
         setCameraState('active');
+        toast({
+          title: "Camera Ready",
+          description: "Camera has been initialized successfully!",
+        });
       }
     } catch (error: any) {
       console.error('Camera initialization failed:', error);
-      setCameraError(error.message);
+      setCameraError(error.message || 'Camera initialization failed');
       setCameraState('error');
+      toast({
+        title: "Camera Error",
+        description: error.message || 'Unable to access camera. Please check permissions.',
+        variant: "destructive",
+      });
     }
+  };
+
+  const getCompatibleStream = async (): Promise<MediaStream> => {
+    const constraints = [
+      { video: { width: 640, height: 480, facingMode: 'user' }, audio: false },
+      { video: { width: 480, height: 360 }, audio: false },
+      { video: { width: 320, height: 240 }, audio: false },
+      { video: true, audio: false },
+      { video: {} }
+    ];
+
+    for (const constraint of constraints) {
+      try {
+        console.log('Trying camera constraint:', constraint);
+        const stream = await navigator.mediaDevices.getUserMedia(constraint);
+        console.log('Camera stream successful:', constraint);
+        return stream;
+      } catch (error) {
+        console.warn('Camera constraint failed:', error);
+      }
+    }
+    
+    throw new Error('Cannot access camera with any settings');
   };
 
   const retryCamera = async () => {

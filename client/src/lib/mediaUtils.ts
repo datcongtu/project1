@@ -73,12 +73,24 @@ export const initializeCamera = async (constraints: CameraConstraints): Promise<
       } catch (basicError: any) {
         console.error('All camera constraint attempts failed:', basicError);
         
-        // Final attempt with minimal constraints
-        try {
-          return await navigator.mediaDevices.getUserMedia({ video: true });
-        } catch (finalError: any) {
-          throw new Error(getCameraErrorMessage(finalError));
+        // Final attempts with increasingly basic constraints
+        const finalAttempts = [
+          { video: true, audio: false },
+          { video: { facingMode: 'user' }, audio: false },
+          { video: { width: 320, height: 240 }, audio: false },
+          { video: {} }
+        ];
+        
+        for (const attempt of finalAttempts) {
+          try {
+            console.log('Trying final camera attempt:', attempt);
+            return await navigator.mediaDevices.getUserMedia(attempt);
+          } catch (attemptError: any) {
+            console.warn('Final attempt failed:', attemptError);
+          }
         }
+        
+        throw new Error(getCameraErrorMessage(basicError));
       }
     }
   }
