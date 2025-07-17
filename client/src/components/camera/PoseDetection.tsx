@@ -151,9 +151,11 @@ export default function PoseDetection({
         console.error('💥 Pose detection error:', error);
       }
 
-      // Continue the loop if still active
+      // Continue the loop at 30 FPS for smooth tracking
       if (isActive) {
-        animationRef.current = requestAnimationFrame(detectPose);
+        setTimeout(() => {
+          animationRef.current = requestAnimationFrame(detectPose);
+        }, 33); // ~30 FPS
       }
     };
 
@@ -173,60 +175,45 @@ export default function PoseDetection({
   }, [isActive, isInitialized]);
 
   const onPoseResults = (results: PoseResults) => {
-    console.log('📸 Pose results received!', {
-      hasLandmarks: !!results.poseLandmarks,
-      landmarkCount: results.poseLandmarks?.length,
-      hasDrawFunctions: !!(window.drawConnectors && window.drawLandmarks)
-    });
-
     if (!canvasRef.current) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas size to match video
+    // Set canvas size to match video every frame
     if (videoRef.current) {
-      canvas.width = videoRef.current.videoWidth || 640;
-      canvas.height = videoRef.current.videoHeight || 480;
+      const videoWidth = videoRef.current.videoWidth || 640;
+      const videoHeight = videoRef.current.videoHeight || 480;
+      
+      if (canvas.width !== videoWidth || canvas.height !== videoHeight) {
+        canvas.width = videoWidth;
+        canvas.height = videoHeight;
+        console.log('📐 Canvas resized to:', videoWidth, 'x', videoHeight);
+      }
     }
 
-    // Clear canvas and draw the input image
-    ctx.save();
+    // Clear canvas completely
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
     // Draw pose landmarks if detected
-    if (results.poseLandmarks) {
-      console.log('🎯 Drawing landmarks, count:', results.poseLandmarks.length);
+    if (results.poseLandmarks && results.poseLandmarks.length === 33) {
+      console.log('🎯 Drawing', results.poseLandmarks.length, 'landmarks in real-time');
       
-      // Try to use MediaPipe's built-in drawing functions first
-      if (window.drawConnectors && window.drawLandmarks && window.POSE_CONNECTIONS) {
-        // Draw pose connections first (skeleton)
+      // Draw skeleton connections first
+      if (window.drawConnectors && window.POSE_CONNECTIONS) {
         window.drawConnectors(ctx, results.poseLandmarks, window.POSE_CONNECTIONS, {
-          color: 'rgba(216, 136, 163, 0.8)', // More visible
-          lineWidth: 3
-        });
-
-        // Draw all landmarks with MediaPipe's function
-        window.drawLandmarks(ctx, results.poseLandmarks, {
           color: '#FF6B9D',
-          fillColor: '#FFFFFF',
-          lineWidth: 2,
-          radius: 8
+          lineWidth: 2
         });
       }
 
-      // Always draw our custom landmarks as backup
-      drawCustomLandmarks(ctx, results.poseLandmarks, canvas.width, canvas.height);
+      // Draw landmarks that follow real body movement
+      drawRealTimeLandmarks(ctx, results.poseLandmarks, canvas.width, canvas.height);
 
       // Analyze pose for exercise tracking
       analyzePose(results.poseLandmarks);
-    } else {
-      console.log('❌ No pose landmarks detected');
     }
-
-    ctx.restore();
   };
 
   const analyzePose = (landmarks: PoseLandmark[]) => {
@@ -259,136 +246,87 @@ export default function PoseDetection({
     countReps(hipCenterY);
   };
 
-  const drawCustomLandmarks = (ctx: CanvasRenderingContext2D, landmarks: PoseLandmark[], width: number, height: number) => {
-    console.log('✨ Drawing custom landmarks:', landmarks.length);
+  const drawRealTimeLandmarks = (ctx: CanvasRenderingContext2D, landmarks: PoseLandmark[], width: number, height: number) => {
+    console.log('🎨 Drawing real-time landmarks, count:', landmarks.length);
     
-    // Draw all landmarks first to debug - make them VERY visible
+    // Draw all 33 landmarks with visibility check
     landmarks.forEach((landmark, index) => {
       const x = landmark.x * width;
       const y = landmark.y * height;
       
-      // Draw all landmarks as large, bright circles for debugging
-      if (x >= -50 && x <= width + 50 && y >= -50 && y <= height + 50) { // Extended bounds
+      // Only draw visible landmarks within canvas bounds
+      if (landmark.visibility > 0.5 && x >= 0 && x <= width && y >= 0 && y <= height) {
         ctx.save();
         
-        // Draw a large, bright circle for each landmark
+        // Different colors and sizes for different body parts
+        let color = '#FF6B9D'; // Default pink
+        let radius = 8;
+        
+        // Face landmarks (0-10)
+        if (index <= 10) {
+          color = '#FFD700'; // Gold
+          radius = 6;
+        }
+        // Hand landmarks (15-22) - most important for tracking
+        else if (index >= 15 && index <= 22) {
+          color = '#FF0000'; // Bright red for hands
+          radius = 12;
+        }
+        // Body core (23-24 hips)
+        else if (index >= 23 && index <= 24) {
+          color = '#00CED1'; // Turquoise
+          radius = 10;
+        }
+        // Legs (25-32)
+        else if (index >= 25) {
+          color = '#32CD32'; // Lime green
+          radius = 8;
+        }
+        
+        // Draw main circle
         ctx.beginPath();
-        ctx.arc(x, y, 12, 0, 2 * Math.PI); // Bigger radius
-        ctx.fillStyle = '#00FF00'; // Bright green for debugging
+        ctx.arc(x, y, radius, 0, 2 * Math.PI);
+        ctx.fillStyle = color;
         ctx.fill();
         
-        // Draw black border
+        // Draw white border for contrast
         ctx.beginPath();
-        ctx.arc(x, y, 12, 0, 2 * Math.PI);
-        ctx.strokeStyle = '#000000';
+        ctx.arc(x, y, radius, 0, 2 * Math.PI);
+        ctx.strokeStyle = '#FFFFFF';
         ctx.lineWidth = 2;
         ctx.stroke();
         
-        // Draw landmark number in larger font
+        // Draw landmark number
         ctx.fillStyle = '#000000';
-        ctx.font = 'bold 12px Arial';
-        ctx.fillText(index.toString(), x + 15, y - 15);
+        ctx.font = 'bold 10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(index.toString(), x, y + 3);
         
         ctx.restore();
       }
     });
-
-    // Define important landmark groups with different colors and sizes
-    const landmarkGroups = {
-      hands: {
-        indices: [15, 16, 19, 20], // Wrists and key hand points
-        color: '#FF6B9D', // Bright pink for hands
-        radius: 12,
-        glow: true
-      },
-      arms: {
-        indices: [11, 12, 13, 14], // Shoulders and elbows
-        color: '#D888A3', // Mom-pink
-        radius: 8,
-        glow: false
-      },
-      core: {
-        indices: [23, 24, 25, 26], // Hips and knees
-        color: '#B86F95', // Darker pink
-        radius: 10,
-        glow: false
-      },
-      face: {
-        indices: [0], // Just nose for now
-        color: '#F4C2C2', // Light pink
-        radius: 8,
-        glow: false
-      }
-    };
-
-    // Draw landmarks by groups with enhanced visibility
-    Object.entries(landmarkGroups).forEach(([groupName, config]) => {
-      config.indices.forEach(index => {
-        if (index < landmarks.length) {
-          const landmark = landmarks[index];
-          const x = landmark.x * width;
-          const y = landmark.y * height;
-          
-          // Draw if within bounds (remove visibility check for now)
-          if (x >= 0 && x <= width && y >= 0 && y <= height) {
-            ctx.save();
-            
-            // Add glow effect for important landmarks
-            if (config.glow) {
-              ctx.shadowColor = config.color;
-              ctx.shadowBlur = 20;
-              ctx.shadowOffsetX = 0;
-              ctx.shadowOffsetY = 0;
-            }
-            
-            // Draw larger, more visible circle
-            ctx.beginPath();
-            ctx.arc(x, y, config.radius, 0, 2 * Math.PI);
-            ctx.fillStyle = config.color;
-            ctx.fill();
-            
-            // Draw white center
-            ctx.beginPath();
-            ctx.arc(x, y, config.radius - 3, 0, 2 * Math.PI);
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fill();
-            
-            // Draw thick border
-            ctx.beginPath();
-            ctx.arc(x, y, config.radius, 0, 2 * Math.PI);
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 3;
-            ctx.stroke();
-            
-            ctx.restore();
-          }
-        }
-      });
-    });
-
-    // Add labels for hands with better visibility
-    ctx.font = '14px Arial, sans-serif';
-    ctx.fillStyle = '#FFFFFF';
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 3;
-
-    // Label hands specifically
-    if (landmarks[15]) {
+    
+    // Add special labels for hands
+    if (landmarks[15] && landmarks[15].visibility > 0.5) {
       const x = landmarks[15].x * width;
       const y = landmarks[15].y * height;
-      if (x >= 0 && x <= width && y >= 0 && y <= height) {
-        ctx.strokeText('LEFT HAND', x + 15, y - 15);
-        ctx.fillText('LEFT HAND', x + 15, y - 15);
-      }
+      ctx.fillStyle = '#FFFFFF';
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 2;
+      ctx.font = 'bold 12px Arial';
+      ctx.strokeText('LEFT HAND', x + 15, y - 15);
+      ctx.fillText('LEFT HAND', x + 15, y - 15);
     }
     
-    if (landmarks[16]) {
+    if (landmarks[16] && landmarks[16].visibility > 0.5) {
       const x = landmarks[16].x * width;
       const y = landmarks[16].y * height;
-      if (x >= 0 && x <= width && y >= 0 && y <= height) {
-        ctx.strokeText('RIGHT HAND', x + 15, y - 15);
-        ctx.fillText('RIGHT HAND', x + 15, y - 15);
-      }
+      ctx.fillStyle = '#FFFFFF';
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 2;
+      ctx.font = 'bold 12px Arial';
+      ctx.strokeText('RIGHT HAND', x + 15, y - 15);
+      ctx.fillText('RIGHT HAND', x + 15, y - 15);
     }
   };
 
