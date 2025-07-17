@@ -6,7 +6,7 @@ import {
   userProgress,
   appointments,
   type User,
-  type UpsertUser,
+  type InsertUser,
   type InsertExerciseSession,
   type ExerciseSession,
   type InsertMoodEntry,
@@ -22,54 +22,53 @@ import { db } from "./db";
 import { eq, desc, and, gte, sql } from "drizzle-orm";
 
 export interface IStorage {
-  // User operations - mandatory for Replit Auth
-  getUser(id: string): Promise<User | undefined>;
-  upsertUser(user: UpsertUser): Promise<User>;
+  // User operations for JWT authentication
+  getUserById(id: number): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
   
   // Exercise session operations
   createExerciseSession(session: InsertExerciseSession): Promise<ExerciseSession>;
-  getUserExerciseSessions(userId: string, limit?: number): Promise<ExerciseSession[]>;
+  getUserExerciseSessions(userId: number, limit?: number): Promise<ExerciseSession[]>;
   getExerciseSessionById(id: number): Promise<ExerciseSession | undefined>;
   
   // Mood tracking operations
   createMoodEntry(entry: InsertMoodEntry): Promise<MoodEntry>;
-  getUserMoodEntries(userId: string, limit?: number): Promise<MoodEntry[]>;
-  getLatestMoodEntry(userId: string): Promise<MoodEntry | undefined>;
+  getUserMoodEntries(userId: number, limit?: number): Promise<MoodEntry[]>;
+  getLatestMoodEntry(userId: number): Promise<MoodEntry | undefined>;
   
   // Chat operations
   createChatConversation(conversation: InsertChatConversation): Promise<ChatConversation>;
   updateChatConversation(id: number, messages: any): Promise<ChatConversation>;
-  getUserChatConversations(userId: string): Promise<ChatConversation[]>;
-  getLatestChatConversation(userId: string): Promise<ChatConversation | undefined>;
+  getUserChatConversations(userId: number): Promise<ChatConversation[]>;
+  getLatestChatConversation(userId: number): Promise<ChatConversation | undefined>;
   
   // Progress tracking operations
-  getUserProgress(userId: string): Promise<UserProgress | undefined>;
-  updateUserProgress(userId: string, progress: Partial<InsertUserProgress>): Promise<UserProgress>;
+  getUserProgress(userId: number): Promise<UserProgress | undefined>;
+  updateUserProgress(userId: number, progress: Partial<InsertUserProgress>): Promise<UserProgress>;
   
   // Appointment operations
   createAppointment(appointment: InsertAppointment): Promise<Appointment>;
-  getUserAppointments(userId: string): Promise<Appointment[]>;
+  getUserAppointments(userId: number): Promise<Appointment[]>;
   updateAppointmentStatus(id: number, status: string): Promise<Appointment>;
 }
 
 export class DatabaseStorage implements IStorage {
-  // User operations - mandatory for Replit Auth
-  async getUser(id: string): Promise<User | undefined> {
+  // User operations for JWT authentication
+  async getUserById(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
 
-  async upsertUser(userData: UpsertUser): Promise<User> {
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async createUser(userData: InsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
       .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          ...userData,
-          updatedAt: new Date(),
-        },
-      })
       .returning();
     return user;
   }
@@ -87,7 +86,7 @@ export class DatabaseStorage implements IStorage {
     return exerciseSession;
   }
 
-  async getUserExerciseSessions(userId: string, limit = 50): Promise<ExerciseSession[]> {
+  async getUserExerciseSessions(userId: number, limit = 50): Promise<ExerciseSession[]> {
     return await db
       .select()
       .from(exerciseSessions)
@@ -113,7 +112,7 @@ export class DatabaseStorage implements IStorage {
     return moodEntry;
   }
 
-  async getUserMoodEntries(userId: string, limit = 30): Promise<MoodEntry[]> {
+  async getUserMoodEntries(userId: number, limit = 30): Promise<MoodEntry[]> {
     return await db
       .select()
       .from(moodEntries)
@@ -122,7 +121,7 @@ export class DatabaseStorage implements IStorage {
       .limit(limit);
   }
 
-  async getLatestMoodEntry(userId: string): Promise<MoodEntry | undefined> {
+  async getLatestMoodEntry(userId: number): Promise<MoodEntry | undefined> {
     const [entry] = await db
       .select()
       .from(moodEntries)
@@ -150,7 +149,7 @@ export class DatabaseStorage implements IStorage {
     return conversation;
   }
 
-  async getUserChatConversations(userId: string): Promise<ChatConversation[]> {
+  async getUserChatConversations(userId: number): Promise<ChatConversation[]> {
     return await db
       .select()
       .from(chatConversations)
@@ -158,7 +157,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(chatConversations.updatedAt));
   }
 
-  async getLatestChatConversation(userId: string): Promise<ChatConversation | undefined> {
+  async getLatestChatConversation(userId: number): Promise<ChatConversation | undefined> {
     const [conversation] = await db
       .select()
       .from(chatConversations)
@@ -169,7 +168,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Progress tracking operations
-  async getUserProgress(userId: string): Promise<UserProgress | undefined> {
+  async getUserProgress(userId: number): Promise<UserProgress | undefined> {
     const [progress] = await db
       .select()
       .from(userProgress)
@@ -177,7 +176,7 @@ export class DatabaseStorage implements IStorage {
     return progress;
   }
 
-  async updateUserProgress(userId: string, progressData: Partial<InsertUserProgress>): Promise<UserProgress> {
+  async updateUserProgress(userId: number, progressData: Partial<InsertUserProgress>): Promise<UserProgress> {
     const [progress] = await db
       .insert(userProgress)
       .values({ userId, ...progressData })
@@ -193,7 +192,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Helper method to increment user progress after exercise
-  private async incrementUserProgress(userId: string): Promise<void> {
+  private async incrementUserProgress(userId: number): Promise<void> {
     const currentProgress = await this.getUserProgress(userId);
     
     if (currentProgress) {
@@ -221,7 +220,7 @@ export class DatabaseStorage implements IStorage {
     return newAppointment;
   }
 
-  async getUserAppointments(userId: string): Promise<Appointment[]> {
+  async getUserAppointments(userId: number): Promise<Appointment[]> {
     return await db
       .select()
       .from(appointments)

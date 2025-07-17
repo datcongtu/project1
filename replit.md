@@ -57,14 +57,15 @@ The application uses PostgreSQL with the following core entities:
 - Dashboard with aggregated health insights
 
 ### Authentication & Authorization
-- Replit Auth integration with OpenID Connect
-- Session-based authentication with PostgreSQL session store
-- User profile management with automatic user creation/updates
-- Protected routes with authentication middleware
+- Custom JWT-based authentication system with email/password
+- bcrypt password hashing with salt rounds for security
+- JWT tokens with 7-day expiration stored in localStorage
+- User profile management with registration and login endpoints
+- Protected routes with JWT authentication middleware
 
 ## Data Flow
 
-1. **User Authentication**: OpenID Connect flow through Replit Auth creates/updates user records
+1. **User Authentication**: Email/password registration/login → JWT token generation → localStorage storage → protected API access
 2. **Exercise Sessions**: Camera captures video → pose detection analysis → metrics storage → progress updates
 3. **Mood Tracking**: User input → validation → database storage → progress aggregation
 4. **Chat Interactions**: User messages → predefined response logic → conversation persistence
@@ -80,10 +81,10 @@ The application uses PostgreSQL with the following core entities:
 - **tailwindcss**: Utility-first CSS framework
 
 ### Authentication & Session Management
-- **openid-client**: OpenID Connect authentication
-- **passport**: Authentication middleware
-- **connect-pg-simple**: PostgreSQL session store
-- **express-session**: Session management
+- **bcrypt**: Password hashing with salt rounds
+- **jsonwebtoken**: JWT token generation and verification
+- **localStorage**: Client-side token storage
+- **Authorization headers**: Bearer token authentication
 
 ### Development Tools
 - **vite**: Frontend build tool and development server
@@ -121,22 +122,29 @@ The architecture prioritizes type safety, developer experience, and scalability 
 
 ## Recent Changes
 
-### July 17, 2025 - Migration Completed
+### July 17, 2025 - JWT Authentication Implementation Completed
+- ✓ Successfully replaced Replit Auth with custom JWT authentication system
+- ✓ Implemented email/password registration and login endpoints
+- ✓ Added bcrypt password hashing with 12 salt rounds for security
+- ✓ Created JWT token system with 7-day expiration
+- ✓ Updated database schema with users table (id, email, passwordHash, firstName, lastName)
+- ✓ Protected all API routes with JWT authentication middleware
+- ✓ Built responsive authentication page with login/register forms
+- ✓ Updated frontend to use JWT tokens in localStorage
+- ✓ Modified query client to automatically include Authorization headers
+- ✓ All authentication endpoints tested and working correctly
+
+### Previous Migration Work
 - ✓ Migrated project from Replit Agent to Replit environment
 - ✓ Set up PostgreSQL database with proper schema
 - ✓ Fixed database constraint issues (added unique constraint to userProgress.userId)
 - ✓ Improved camera initialization with better error handling
 - ✓ Enhanced pose detection system with more realistic body movement tracking
-- ✓ Added session secret handling for authentication
-- ✓ All API endpoints tested and working correctly
-
-### User Feedback Addressed
-- Improved pose detection dots to follow body movement more realistically
-- Enhanced camera compatibility with progressive constraint fallbacks
-- Better error messages and user feedback for camera issues
 
 ### Current Status
 - Application running successfully on port 5000
-- Database connected and operational
-- Authentication system working with Replit Auth
-- All core features functional and ready for further development
+- Database connected and operational with JWT authentication
+- Custom authentication system working with email/password
+- All core features functional and ready for deployment to Render.com
+- Authentication endpoints: /api/register, /api/login, /api/auth/user
+- All protected routes require valid JWT Bearer tokens
