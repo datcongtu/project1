@@ -177,19 +177,14 @@ export default function PoseDetection({
 
     // Draw pose landmarks if detected
     if (results.poseLandmarks && window.drawConnectors && window.drawLandmarks) {
-      // Draw pose connections
+      // Draw pose connections first (skeleton)
       window.drawConnectors(ctx, results.poseLandmarks, window.POSE_CONNECTIONS, {
-        color: '#D888A3', // Mom-pink color
-        lineWidth: 3
+        color: 'rgba(216, 136, 163, 0.6)', // Semi-transparent mom-pink
+        lineWidth: 2
       });
 
-      // Draw pose landmarks
-      window.drawLandmarks(ctx, results.poseLandmarks, {
-        color: '#D888A3',
-        fillColor: '#FFFFFF',
-        lineWidth: 2,
-        radius: 6
-      });
+      // Draw custom landmarks with better visibility for hands
+      drawCustomLandmarks(ctx, results.poseLandmarks, canvas.width, canvas.height);
 
       // Analyze pose for exercise tracking
       analyzePose(results.poseLandmarks);
@@ -226,6 +221,110 @@ export default function PoseDetection({
 
     // Rep counting for pelvic tilts
     countReps(hipCenterY);
+  };
+
+  const drawCustomLandmarks = (ctx: CanvasRenderingContext2D, landmarks: PoseLandmark[], width: number, height: number) => {
+    // Define important landmark groups with different colors and sizes
+    const landmarkGroups = {
+      hands: {
+        indices: [15, 16, 17, 18, 19, 20, 21, 22], // Wrists and hand landmarks
+        color: '#FF6B9D', // Bright pink for hands
+        radius: 8,
+        glow: true
+      },
+      arms: {
+        indices: [11, 12, 13, 14], // Shoulders and elbows
+        color: '#D888A3', // Mom-pink
+        radius: 6,
+        glow: false
+      },
+      core: {
+        indices: [23, 24, 25, 26], // Hips and knees
+        color: '#B86F95', // Darker pink
+        radius: 7,
+        glow: false
+      },
+      face: {
+        indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], // Face landmarks
+        color: '#F4C2C2', // Light pink
+        radius: 4,
+        glow: false
+      },
+      feet: {
+        indices: [27, 28, 29, 30, 31, 32], // Ankles and feet
+        color: '#A85D87', // Deep pink
+        radius: 5,
+        glow: false
+      }
+    };
+
+    // Draw landmarks by groups
+    Object.entries(landmarkGroups).forEach(([groupName, config]) => {
+      config.indices.forEach(index => {
+        if (index < landmarks.length) {
+          const landmark = landmarks[index];
+          const x = landmark.x * width;
+          const y = landmark.y * height;
+          
+          // Only draw if landmark is visible and within bounds
+          if (landmark.visibility && landmark.visibility > 0.5 && 
+              x >= 0 && x <= width && y >= 0 && y <= height) {
+            
+            ctx.save();
+            
+            // Add glow effect for important landmarks (hands)
+            if (config.glow) {
+              ctx.shadowColor = config.color;
+              ctx.shadowBlur = 15;
+              ctx.shadowOffsetX = 0;
+              ctx.shadowOffsetY = 0;
+            }
+            
+            // Draw outer circle
+            ctx.beginPath();
+            ctx.arc(x, y, config.radius, 0, 2 * Math.PI);
+            ctx.fillStyle = config.color;
+            ctx.fill();
+            
+            // Draw inner circle (white center)
+            ctx.beginPath();
+            ctx.arc(x, y, config.radius - 2, 0, 2 * Math.PI);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fill();
+            
+            // Draw border
+            ctx.beginPath();
+            ctx.arc(x, y, config.radius, 0, 2 * Math.PI);
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            ctx.restore();
+          }
+        }
+      });
+    });
+
+    // Add labels for key landmarks
+    ctx.font = '12px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.lineWidth = 2;
+
+    // Label hands specifically
+    if (landmarks[15] && landmarks[15].visibility > 0.5) {
+      const x = landmarks[15].x * width;
+      const y = landmarks[15].y * height;
+      ctx.strokeText('Left Hand', x + 10, y - 10);
+      ctx.fillText('Left Hand', x + 10, y - 10);
+    }
+    
+    if (landmarks[16] && landmarks[16].visibility > 0.5) {
+      const x = landmarks[16].x * width;
+      const y = landmarks[16].y * height;
+      ctx.strokeText('Right Hand', x + 10, y - 10);
+      ctx.fillText('Right Hand', x + 10, y - 10);
+    }
   };
 
   const countReps = (currentHipY: number) => {
