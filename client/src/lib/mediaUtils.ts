@@ -72,7 +72,13 @@ export const initializeCamera = async (constraints: CameraConstraints): Promise<
         return await navigator.mediaDevices.getUserMedia(basicConstraints);
       } catch (basicError: any) {
         console.error('All camera constraint attempts failed:', basicError);
-        throw new Error(getCameraErrorMessage(basicError));
+        
+        // Final attempt with minimal constraints
+        try {
+          return await navigator.mediaDevices.getUserMedia({ video: true });
+        } catch (finalError: any) {
+          throw new Error(getCameraErrorMessage(finalError));
+        }
       }
     }
   }
