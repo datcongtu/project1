@@ -1,7 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
 import { 
   insertExerciseSessionSchema,
   insertMoodEntrySchema,
@@ -10,15 +9,27 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 
+// Default user for non-authenticated access
+const DEFAULT_USER_ID = "default_user";
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware
-  await setupAuth(app);
+  // Create default user if it doesn't exist
+  try {
+    await storage.upsertUser({
+      id: DEFAULT_USER_ID,
+      email: "user@example.com",
+      firstName: "Demo",
+      lastName: "User",
+      profileImageUrl: null,
+    });
+  } catch (error) {
+    console.error("Error creating default user:", error);
+  }
 
   // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get('/api/auth/user', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
+      const user = await storage.getUser(DEFAULT_USER_ID);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -30,12 +41,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Exercise session routes
-  app.post('/api/exercise-sessions', isAuthenticated, async (req: any, res) => {
+  app.post('/api/exercise-sessions', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
       const sessionData = insertExerciseSessionSchema.parse({
         ...req.body,
-        userId,
+        userId: DEFAULT_USER_ID,
       });
       
       const session = await storage.createExerciseSession(sessionData);
@@ -49,11 +59,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/exercise-sessions', isAuthenticated, async (req: any, res) => {
+  app.get('/api/exercise-sessions', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
-      const sessions = await storage.getUserExerciseSessions(userId, limit);
+      const sessions = await storage.getUserExerciseSessions(DEFAULT_USER_ID, limit);
       res.json(sessions);
     } catch (error) {
       console.error("Error fetching exercise sessions:", error);
@@ -62,12 +71,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Mood tracking routes
-  app.post('/api/mood-entries', isAuthenticated, async (req: any, res) => {
+  app.post('/api/mood-entries', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
       const moodData = insertMoodEntrySchema.parse({
         ...req.body,
-        userId,
+        userId: DEFAULT_USER_ID,
       });
       
       const moodEntry = await storage.createMoodEntry(moodData);
@@ -81,11 +89,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/mood-entries', isAuthenticated, async (req: any, res) => {
+  app.get('/api/mood-entries', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
-      const entries = await storage.getUserMoodEntries(userId, limit);
+      const entries = await storage.getUserMoodEntries(DEFAULT_USER_ID, limit);
       res.json(entries);
     } catch (error) {
       console.error("Error fetching mood entries:", error);
@@ -93,10 +100,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/mood-entries/latest', isAuthenticated, async (req: any, res) => {
+  app.get('/api/mood-entries/latest', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const entry = await storage.getLatestMoodEntry(userId);
+      const entry = await storage.getLatestMoodEntry(DEFAULT_USER_ID);
       res.json(entry || null);
     } catch (error) {
       console.error("Error fetching latest mood entry:", error);
@@ -105,12 +111,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Chat conversation routes
-  app.post('/api/chat/conversations', isAuthenticated, async (req: any, res) => {
+  app.post('/api/chat/conversations', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
       const conversationData = insertChatConversationSchema.parse({
         ...req.body,
-        userId,
+        userId: DEFAULT_USER_ID,
       });
       
       const conversation = await storage.createChatConversation(conversationData);
@@ -124,7 +129,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/chat/conversations/:id', isAuthenticated, async (req: any, res) => {
+  app.put('/api/chat/conversations/:id', async (req: any, res) => {
     try {
       const conversationId = parseInt(req.params.id);
       const { messages } = req.body;
@@ -137,10 +142,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/chat/conversations', isAuthenticated, async (req: any, res) => {
+  app.get('/api/chat/conversations', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const conversations = await storage.getUserChatConversations(userId);
+      const conversations = await storage.getUserChatConversations(DEFAULT_USER_ID);
       res.json(conversations);
     } catch (error) {
       console.error("Error fetching chat conversations:", error);
@@ -148,10 +152,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/chat/conversations/latest', isAuthenticated, async (req: any, res) => {
+  app.get('/api/chat/conversations/latest', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const conversation = await storage.getLatestChatConversation(userId);
+      const conversation = await storage.getLatestChatConversation(DEFAULT_USER_ID);
       res.json(conversation || null);
     } catch (error) {
       console.error("Error fetching latest conversation:", error);
@@ -160,10 +163,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Progress tracking routes
-  app.get('/api/progress', isAuthenticated, async (req: any, res) => {
+  app.get('/api/progress', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const progress = await storage.getUserProgress(userId);
+      const progress = await storage.getUserProgress(DEFAULT_USER_ID);
       res.json(progress || null);
     } catch (error) {
       console.error("Error fetching user progress:", error);
@@ -171,12 +173,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/progress', isAuthenticated, async (req: any, res) => {
+  app.put('/api/progress', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
       const progressData = req.body;
       
-      const progress = await storage.updateUserProgress(userId, progressData);
+      const progress = await storage.updateUserProgress(DEFAULT_USER_ID, progressData);
       res.json(progress);
     } catch (error) {
       console.error("Error updating user progress:", error);
@@ -185,12 +186,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Appointment routes
-  app.post('/api/appointments', isAuthenticated, async (req: any, res) => {
+  app.post('/api/appointments', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
       const appointmentData = insertAppointmentSchema.parse({
         ...req.body,
-        userId,
+        userId: DEFAULT_USER_ID,
       });
       
       const appointment = await storage.createAppointment(appointmentData);
@@ -204,10 +204,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/appointments', isAuthenticated, async (req: any, res) => {
+  app.get('/api/appointments', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const appointments = await storage.getUserAppointments(userId);
+      const appointments = await storage.getUserAppointments(DEFAULT_USER_ID);
       res.json(appointments);
     } catch (error) {
       console.error("Error fetching appointments:", error);
@@ -215,7 +214,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/appointments/:id/status', isAuthenticated, async (req: any, res) => {
+  app.put('/api/appointments/:id/status', async (req: any, res) => {
     try {
       const appointmentId = parseInt(req.params.id);
       const { status } = req.body;
